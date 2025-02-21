@@ -30,13 +30,14 @@
         - Requires a [connector](https://drive.google.com/file/d/1JBD4EhKf4gAre9dwJdqgS4vPZRU5ML8w/view?usp=drive_link) to attach tools to the Clipper.  
           - Example: The hammer linked above already includes the connector.  
 
-        The upper Clipper is connected to the Clipper base using one M4×16 screw and one M4 nut. 
+        The upper Clipper is connected to the Clipper base using one M4×16 screw and one M4 nut. A [clipper gasket](https://drive.google.com/file/d/11Jw-0TL7u2tzo6TFm0f1b6uPaByDueeN/view?usp=sharing) is provided for placing between the UR5E robot and the Clipper. If the gasket is chosen to use, you should use four M6×30 screws. Without the clipper gasket, four M6×24 screws will work as well. Four M6 screw gasket will be used in both conditions.
         
       - 3D Printed [Mounter](https://drive.google.com/drive/folders/1Ex7M8BWiQKhk5oJQzOgIL4AuPSCr0W8m?usp=drive_link)
 
         - Suitable for both 3D-printed and standard tools.  
         - Secured using one or two 3D-printed screws.  
-        
+
+        To connect the Mounter with UR5E robot, you should use four M6×12 screws. Four M6 screw gasket will be used here to make it tightly connected.
 
 ### Environment Setup
 
