@@ -1,0 +1,181 @@
+defaults:
+  - _self_
+  - task: real_hammer_human
+
+name: train_diffusion_policy
+_target_: ti.workspace.train_diffusion_unet_hybrid_workspace.TrainDiffusionUnetHybridWorkspace
+
+task_name: ${task.name}
+shape_meta: ${task.shape_meta}
+exp_name: "default"
+debug: False
+
+
+horizon: 8
+n_obs_steps: 2
+n_action_steps: 4
+n_latency_steps: 0
+dataset_obs_steps: ${n_obs_steps}
+past_action_visible: False
+keypoint_visible_rate: 1.0
+obs_as_global_cond: True
+max_epochs_without_improvement: 100
+epochs_waited_before_next_stage: 0
+batch_size: 32
+
+resume_dir: null
+
+frame_stack: 10
+
+policy:
+  _target_: ti.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
+
+  shape_meta: ${shape_meta}
+  
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    variance_type: fixed_small # learned_range, fixed_small # Yilun's paper uses fixed_small_log instead, but easy to cause Nan
+    clip_sample: True # required when predict_epsilon=False
+    prediction_type: epsilon # or sample
+
+
+  load_path: null
+  enable_transform_pred: False
+  obs_cfg:
+    obs_shapes:
+      rgb: ${task.image_shape}
+      tracks: [16, 32, 2]
+    img_mean: [ 0., 0., 0. ]
+    img_std: [ 1.0, 1.0, 1.0 ]
+    num_views: 1
+    max_seq_len: ${frame_stack}
+  track_cfg:
+    track_fn: results/track_transformer/0921_libero_track_debug_1534
+    policy_track_patch_size: 16
+    use_zero_track: false
+    segmentation_labels: ${task.segmentation_labels}
+  spatial_transformer_cfg:
+    num_layers: 7
+    num_heads: 8
+    head_output_size: 120
+    mlp_hidden_size: 256
+    dropout: 0.1
+    spatial_downsample: true
+    spatial_downsample_embed_size: 64
+    use_language_token: false
+  temporal_transformer_cfg:
+    num_layers: 4
+    num_heads: 6
+    head_output_size: 64
+    mlp_hidden_size: 256
+    dropout: 0.1
+    use_language_token: false
+
+  horizon: ${horizon}
+  n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
+  n_obs_steps: ${n_obs_steps}
+  num_inference_steps: 100
+  obs_as_global_cond: ${obs_as_global_cond}
+  # crop_shape: [76, 76]
+  # crop_shape: [202, 202]
+  crop_shape: [115, 115]
+  # crop_shape: null
+  diffusion_step_embed_dim: 128
+  down_dims: [512, 1024, 2048]
+  kernel_size: 5
+  n_groups: 8
+  cond_predict_scale: True
+  obs_encoder_group_norm: True
+  eval_fixed_crop: True
+
+  # scheduler.step params
+  # predict_epsilon: True
+
+ema:
+  _target_: ti.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+dataloader:
+  batch_size: ${batch_size}
+  num_workers: 8
+  shuffle: True
+  pin_memory: True
+  persistent_workers: False
+
+val_dataloader:
+  batch_size: ${batch_size}
+  num_workers: 8
+  shuffle: False
+  pin_memory: True
+  persistent_workers: False
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.95, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-6
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: ${debug}
+  resume: True
+  # optimization
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  num_epochs: 3050
+  gradient_accumulate_every: 1
+  # EMA destroys performance when used with BatchNorm
+  # replace BatchNorm with GroupNorm.
+  use_ema: True
+  # training loop control
+  # in epochs
+  rollout_every: 10
+  checkpoint_every: 10
+  val_every: 1
+  sample_every: 5
+  # steps per epoch
+  max_train_steps: null
+  max_val_steps: null
+  # misc
+  tqdm_interval_sec: 1.0
+
+logging:
+  project: diffusion_policy_debug
+  resume: True
+  mode: online
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  tags: ["${name}", "${task_name}", "${exp_name}"]
+  id: null
+  group: null
+
+checkpoint:
+  topk:
+    monitor_key: train_action_mse_error
+    mode: min
+    k: 5
+    format_str: 'epoch={epoch:04d}-action_mse={train_action_mse_error:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}

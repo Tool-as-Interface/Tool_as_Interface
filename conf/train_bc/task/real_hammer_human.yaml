@@ -1,0 +1,74 @@
+name: real_hammer_human
+
+image_shape: [3, 128, 128] # [channel, height, width]
+depth_shape: [128, 128] # [height, width]
+intrinsics_shape: [3, 3]
+feature_shape: [3, 128, 128]
+dataset_path: data/hammer_human
+
+robot_side: 'right'
+segmentation_labels: ['a nail hammer']
+cam_serials:
+  camera_1: '104122060562'
+  camera_2: '109522060799'
+  camera_3: '947122060225'
+  camera_4: '947122061051'
+
+mesh_file: ./assets/mesh/hammer/textured_mesh.obj
+
+
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    # camera_3_color:
+    #   shape: ${task.image_shape}
+    #   type: rgb
+    #   enabled: True
+    # camera_3_depth:
+    #   shape: ${task.depth_shape}
+    #   type: depth
+    #   enabled: False
+    camera_features:
+      shape: ${task.feature_shape}
+      original_shape: [3, 224, 224]
+      type: feature 
+      sparse_shape: ${task.feature_shape}
+      info:
+        segment: True
+        novel_view: False
+        batch_size: 64
+        aug_img_num: 11
+        reference_img_names:
+          - clean_reference.png
+        view_keys:
+          - camera_3
+          - camera_4
+
+    robot_eef_pose:
+      shape: [9]
+      type: low_dim
+
+  action:
+    shape: [9]
+    type: cartesian_action 
+
+env_runner:
+  _target_: ti.env_runner.real_runner.RealRunner
+
+dataset:
+  _target_: ti.diffusion_dataset.real_dataset.RealDataset
+  shape_meta: *shape_meta  
+  dataset_path: ${task.dataset_path}
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  n_obs_steps: ${dataset_obs_steps}
+  n_latency_steps: ${n_latency_steps}
+  use_cache: True
+  seed: 42
+  val_ratio: 0.1
+  max_train_episodes: null
+  delta_action: False
+  debug: ${debug}
+
+
